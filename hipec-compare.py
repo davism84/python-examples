@@ -17,7 +17,7 @@ match = False
 masterfile = ''
 newfile = ''
 redcapfile = 'redcap-import.csv'  #default if no options are specified
-matchfile = 'matches.csv'
+matchfile = 'existing-matches.csv'
 newmatchfile = 'new-patients.csv'
 
 parser = argparse.ArgumentParser()
@@ -81,8 +81,8 @@ patientDiff = newSet.difference(masterSet)
 # get intersections
 matchingPatients = masterSet.intersection(newSet)
 
-if verbose:
-	print (newpatIdHash.keys())
+#if verbose:
+#	print (newpatIdHash.keys())
 #  print (patientDiff)
 #  print (masterLastNames[1])
 #  print (newLastNames[1])
@@ -108,10 +108,14 @@ with open(redcapfile, 'w') as csvfile:
     for index in range(len(patientDiffList)):
       patient = patientDiffList[index].split(',')
       n = patient[0].strip().upper() + ',' + patient[1].strip().upper() + ',' + patient[2].strip()
-      if verbose:
-      	print (n)
+      #if verbose:
+      #	print (n)
       mrn = newpatIdHash[n]      
-      newfilelist.append(str(newId) +',' + n + ','+ str(mrn))  # save the new record with ids
+      hipecdt = newpatDateHash[n]
+      outstr = str(newId) +',' + n + ','+ str(mrn) + ',,,,' + hipecdt
+      if verbose:
+      	print ('outstr: ' + outstr)
+      newfilelist.append(outstr)  # save the new record with ids
 
       #if verbose:
       #  print (newfilelist)
