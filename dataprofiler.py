@@ -9,9 +9,12 @@ totalRecs = 0
 datafile = ''
 outfile = 'stats.csv'
 datevarfile = ''
+datefmtmask = '%Y%m%d'
 strMode = False
 datevarlist = []
 
+# load the actual data file
+# return a dataframe
 def loadData(filename):
 	try:
 		print('Loading data file...' + filename)
@@ -26,6 +29,7 @@ def loadData(filename):
 	finally:
 		pass
 
+# load the list of specified date columns from a csv
 def loadDateColumnVars(datefile):
 	l = []
 	try:
@@ -39,14 +43,21 @@ def loadDateColumnVars(datefile):
 	finally:
 		return l
 
+# check for valid dates
+# dlist - list of dates to check
+# returns a count of the number of invalid dates
 def checkDates(dlist):
 	invalids = 0
 	for dt in dlist:
 		if dt != dt:
-			continue
+			pass
 		else:
 			try:
-				time.strptime(dt, '%Y%m%d')
+				if strMode == False:  # dates read in as numeric
+					strDt = str(int(dt))
+				else:
+					strDt = dt
+				time.strptime(strDt, datefmtmask)    # make this configurable
 				#print (dt)
 			except Exception as e:
 				#print ('invalid date')
@@ -97,6 +108,7 @@ if __name__ == '__main__':
 	parser.add_argument("-s", "--string", action="store_true", help="open file in string mode")
 	parser.add_argument("-o", "--outfile", help="output file; default will be: stats.csv")
 	parser.add_argument("-d", "--datevars", help="date variable file for checking dates")	
+	parser.add_argument("-f", "--datefmtmask", help="date formart mask for checking dates")
 	args = parser.parse_args()
 
 	if args.datafile:
@@ -109,5 +121,7 @@ if __name__ == '__main__':
 		datevarfile = args.datevars
 		datevarlist = loadDateColumnVars(datevarfile)
 		#print (datevarlist)
+	if args.datefmtmask:
+		datefmtmask = args.datefmtmask
 
 	process()
