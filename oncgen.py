@@ -7,6 +7,7 @@ import re
 import string
 import pandas as pd
 import numpy as ny
+import random
 
 cfgfile = ''
 datafile = ''
@@ -15,10 +16,12 @@ KEYNS = "ties.model"
 TAG_RE = re.compile(r'<[^>]+>')
 transmart = False
 delimiter = '\t'
-outfilename = "config.cfg"
+conceptfilename = "concepts_dim.sql"
+i2b2filename = "i2b2.sql"
 TOP_PATH = '\\Public Studies\\'
 PROJECT = ''
 strMode = True
+fori2b2 = False
 
 def remove_tags(text):
 	tmp = TAG_RE.sub('', text)
@@ -29,6 +32,9 @@ columns = ""
 metadata = []
 dataFrame = ''
 cfgLevels = []
+conceptSqlStmts = []
+i2b2SqlStmts = []
+parentLevels = []
 
 headers = {
 	'x-seerapi-key': "bc70251be6e4dad034b029dcb199e6f5",'cache-control': "no-cache",
@@ -69,6 +75,8 @@ def get_unique_codes(filename):
 
 		headers = list(df)   # get a list of headers for the data
 		#print (df)
+		sql =''
+		#print(cfgLevels)
 
 		for lvl in cfgLevels:
 			colno = int(lvl['col'])
@@ -76,26 +84,66 @@ def get_unique_codes(filename):
 				cat = lvl['category']
 				pnode = lvl['label']
 				levels = cat.replace('+', '\\')
-				path = TOP_PATH + levels + '\\'+ pnode.strip() + '\\'
-				print(path)
+				path = TOP_PATH + PROJECT + '\\' + levels + '\\'+ pnode.strip() + '\\'
+								
 				colType = df[headers[colno-1]].dtype
-				print(type(colType))
+				#print(colType.name)
+				
+				# if its a string see if we have associated codes
+				if colType.name == 'object':
+					uniqCodes = df[headers[colno-1]].unique()  # get all unique codes
+					#print(len(uniqCodes))
+					
+					# add parent node of the codes
+					#a = levels.split('\\')
+					#n = a[len(a)-1]  # use the last label for the node name
+					conceptId = PROJECT[0:3] + ':' + str(random.random())
+					isql = get_i2b2_insert_stmt(path.strip(), pnode, 'T', PROJECT, conceptId, 'FA')
+					csql = get_concept_insert_stmt(path.strip(), pnode, PROJECT, conceptId)
 
-				if colType == ny.dtype('object'):
-					uniqCodes = df[headers[colno-1]].unique()
+					conceptSqlStmts.append(csql)
+					i2b2SqlStmts.append(isql)
+
+					#print(path)
+					# now loop through all the codes
 					for node in uniqCodes:
 						try:
 							if node.isnumeric() == False:
-								conceptPath = path + str(node)
-								#sql = get_insert_stmt(conceptPath, str(node), PROJECT)
-								sql = get_i2b2_insert_stmt(conceptPath.strip(), str(node).strip(), 'T', PROJECT)
-								#print(sql)
+								conceptId = PROJECT[0:3] + ':' + str(random.random())
+								conceptPath = path + str(node) + '\\'
+								isql = get_i2b2_insert_stmt(conceptPath.strip(), str(node).strip(), 'T', PROJECT, conceptId, 'LA')
+								csql = get_concept_insert_stmt(conceptPath, str(node), PROJECT, conceptId)
+								conceptSqlStmts.append(csql)
+								i2b2SqlStmts.append(isql)
+						#print(sql)
 						except:
 							e = ''
-				else:
-					sql = get_i2b2_insert_stmt(path.strip(), str(pnode).strip(), 'N', PROJECT)
-					#print(sql)
-						
+					
+				else:  # Numeric
+					conceptId = PROJECT[0:3] + ':' + str(random.random())
+					isql = get_i2b2_insert_stmt(path.strip(), str(pnode).strip(), 'N', PROJECT, conceptId, 'LA')
+					csql = get_concept_insert_stmt(path.strip(), str(pnode).strip(), PROJECT, conceptId)
+					conceptSqlStmts.append(csql)
+					i2b2SqlStmts.append(isql)
+
+		# add project root nodes
+		conceptId = PROJECT[0:3] + ':' + str(random.random())
+		isql = get_i2b2_insert_stmt(TOP_PATH + PROJECT + '\\', PROJECT, 'T', PROJECT, conceptId, 'FAS')
+		csql = get_concept_insert_stmt(TOP_PATH + PROJECT + '\\', PROJECT, PROJECT, conceptId)	
+		conceptSqlStmts.append(csql)
+		i2b2SqlStmts.append(isql)						
+
+		print('parent level nodes.............')
+		# add parent level nodes
+		for path in parentLevels:
+			a = path.split('\\')
+			pnode = a[len(a)-2]  # use the last label for the node name
+			print(path)
+			conceptId = PROJECT[0:3] + ':' + str(random.random())
+			isql = get_i2b2_insert_stmt(path, pnode, 'T', PROJECT, conceptId, 'FA')
+			csql = get_concept_insert_stmt(path, pnode, PROJECT, conceptId)	
+			conceptSqlStmts.append(csql)
+			i2b2SqlStmts.append(isql)
 
 	except Exception as e:
 		raise
@@ -104,17 +152,28 @@ def get_unique_codes(filename):
 	finally:
 		pass
 
+def write_sql():
+	
+	try:
+		print('Writing concept dimension sql to ' + conceptfilename)
+		outfile = open(conceptfilename, "w")
 
-# def read_data_file(afile):
-# 	with open(afile) as csvfile:
-# 		reader = csv.DictReader(csvfile, delimiter=delimiter)
-# 		cols = reader.fieldnames
+		for line in conceptSqlStmts:
+			outfile.write(line)
+			outfile.write('\n')
 
-# 		for row in reader:
-# 			#print(row)
-# 			data.extend([{cols[i]:row[cols[i]] for i in range(len(cols))}])
+		print('Writing i2b2 sql to ' + i2b2filename)
+		outfile2 = open(i2b2filename, "w")
 
-# 	csvfile.close()
+		for line2 in i2b2SqlStmts:
+			outfile2.write(line2)
+			outfile2.write('\n')
+
+	except:
+		print ('Error writing line')
+	finally:
+		outfile.close()	
+		outfile2.close()	
 
 def build_cf_levels():
 	print('building cf levels...')
@@ -124,47 +183,46 @@ def build_cf_levels():
 		dl = r['Data Label']
 		l = {'col':colno, 'label': dl, 'category':cat}
 		cfgLevels.append(l)
-	#print(l)
 
-# def parse_category():
-# 	cfgLevels = []
-# 	for r in metadata:
-# 		cat = r['Category Code']
-# 		colno = r['Column Number']
-# 		dl = r['Data Label']
-# 		cfgLevels = cat.split('+')
-# 		cfgLevels.append(colno)
-# 		cfgLevels.append(dl)
-# 		print (cfgLevels)
+def build_parent_level_nodes():
+	print('building parent levels...')
+	for r in metadata:
+		cat = r['Category Code']
+		path = cat.replace('+', '\\')
 
+		# cycle through the 
+		levels = path.split('\\')
+		parentPath = TOP_PATH + PROJECT + '\\' 
+		for p in levels:
+			parentPath = parentPath + p + '\\'
+			if parentPath not in parentLevels:
+				parentLevels.append(parentPath)
 
-
-def get_concept_insert_stmt(cPath, nodeName, projectId):
+def get_concept_insert_stmt(cPath, nodeName, projectId, conceptId):
 	return 'insert into i2b2demodata.concept_dimension ' \
     		+ '(concept_cd,concept_path,name_char,update_date,download_date,import_date,sourcesystem_cd) ' \
-    		+ 'values (nextval(\'i2b2demodata.concept_id\'), \'' + cPath + '\', \'' + nodeName + '\',current_timestamp,current_timestamp,current_timestamp,' + '\'' + projectId + '\');'
+    		+ 'values (\'' + conceptId + '\', \'' + cPath + '\', \'' + nodeName + '\',current_timestamp,current_timestamp,current_timestamp,' + '\'' + projectId + '\');'
+    		#+ 'values (nextval(\'i2b2demodata.concept_id\'), \'' + cPath + '\', \'' + nodeName + '\',current_timestamp,current_timestamp,current_timestamp,' + '\'' + projectId + '\');'
 
-def get_i2b2_insert_stmt(cPath, nodeName, dataType, projectId):
+def get_i2b2_insert_stmt(cPath, nodeName, dataType, projectId, conceptId, cVisual):
 	levels = cPath.split('\\')
 	try:
-		hlevels = len(levels)-2   # account for begin and end \
+		hlevels = len(levels)-3   # account for begin and end \
 	except:
 		hlevels = 0
 
-	baseCode = '00000000'  # TODO: need to get the concept_code from concept dimension
-
-	#dataType = 'T'   # TODO: get the proper datatype
+	#baseCode = '00000000'  # TODO: need to get the concept_code from concept dimension
 
 	xml = ''
 
+	# for numeric values use the XML structure
 	if dataType != 'T':
 		xml = '<?xml version="1.0"?><ValueMetadata><Version>3.02</Version><CreationDateTime>08/14/2008 01:22:59</CreationDateTime><TestID></TestID><TestName></TestName><DataType>PosFloat</DataType><CodeType></CodeType><Loinc></Loinc><Flagstouse></Flagstouse><Oktousevalues>Y</Oktousevalues><MaxStringLength></MaxStringLength><LowofLowValue>0</LowofLowValue><HighofLowValue>0</HighofLowValue><LowofHighValue>100</LowofHighValue>100<HighofHighValue>100</HighofHighValue><LowofToxicValue></LowofToxicValue><HighofToxicValue></HighofToxicValue><EnumValues></EnumValues><CommentsDeterminingExclusion><Com></Com></CommentsDeterminingExclusion><UnitValues><NormalUnits>ratio</NormalUnits><EqualUnits></EqualUnits><ExcludingUnits></ExcludingUnits><ConvertingUnits><Units></Units><MultiplyingFactor></MultiplyingFactor></ConvertingUnits></UnitValues><Analysis><Enums /><Counts /><New /></Analysis></ValueMetadata>'
 
-	cVisual = get_visual_node_level(hlevels)   # TODO this needs to figure out if path is a parent or a child node
 	sql = 'insert into i2b2metadata.i2b2 (c_hlevel, c_fullname,c_name,c_visualattributes,c_synonym_cd,c_facttablecolumn,c_tablename,c_columnname,c_dimcode,c_tooltip,update_date,download_date' \
 			+',import_date,sourcesystem_cd,c_basecode,c_operator,c_columndatatype,c_comment	,m_applied_path,c_metadataxml) values (' \
 			+ str(hlevels) + ',\'' + cPath + '\', \'' + nodeName + '\', \'' + cVisual + '\',\'N\', \'CONCEPT_CD\', \'CONCEPT_DIMENSION\',\'CONCEPT_PATH\',' \
-			+ '\'' + cPath + '\',' + '\'' + cPath + '\', current_timestamp, current_timestamp,current_timestamp,' + '\'' + projectId + '\', \'' + baseCode + '\',' \
+			+ '\'' + cPath + '\',' + '\'' + cPath + '\', current_timestamp, current_timestamp,current_timestamp,' + '\'' + projectId + '\', \'' + conceptId + '\',' \
 			+ '\'LIKE\',\'' + dataType + '\', \'trial:'+ projectId + '\', \'@\',\'' + xml + '\');'
 
 	return sql
@@ -176,29 +234,11 @@ def get_visual_node_level(hlevel):
 	return 'FA'
 
 def main(cffile, dfile):
-
-	#read_data_file(dfile)
-
 	read_cfg_file(cffile)
-
 	build_cf_levels()
-	#parse_category()
-
+	build_parent_level_nodes()
 	get_unique_codes(dfile)
-
-	# if 	transmart:
-	# 	print ('Building tranSMART cfg rows...')
-	# 	r = build_transmart_rows(columns, afile)
-
-	# 	print ('Writing config file...' + afile)		
-	# 	write_transmart_cfg(r, afile)
-
-	# else:
-	# 	print ('Building TIES cfg rows...')
-	# 	r = build_tiescfg_rows(columns)
-
-	# 	print ('Writing config file...' + afile)
-	# 	write_tiescfg(r, afile)
+	write_sql()
 
 
 if __name__ == "__main__":
@@ -206,6 +246,8 @@ if __name__ == "__main__":
 	parser.add_argument("cfgfile", help="Config file")
 	parser.add_argument("datafile", help="Data file")
 	parser.add_argument("-p", help="Project name")
+#	parser.add_argument("-o", help="Output file")
+#   parser.add_argument("-i", action="store_true", help="Generate sql for i2b2 table")	
 #	parser.add_argument("-tab", action="store_true", help="tab delimited file (default comma)")
 	args = parser.parse_args()
 
@@ -214,6 +256,10 @@ if __name__ == "__main__":
 	if args.datafile:
 		datafile = args.datafile
 	if args.p:
-		PROJECT = args.p	
+		PROJECT = args.p
+	# if args.o:
+	# 	outfilename = args.o
+	# if args.i:
+	# 	fori2b2 = True
 
 	main(cfgfile, datafile)
