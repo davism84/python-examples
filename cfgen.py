@@ -16,6 +16,8 @@ outfilename = "config.cfg"
 def remove_tags(text):
 	tmp = TAG_RE.sub('', text)
 	scrubbed = tmp.replace('&#8217;', '')
+	scrubbed = scrubbed.replace('&#8220;', '')
+	scrubbed = scrubbed.replace('&#8221;', '')
 	return scrubbed
 
 columns = ""
@@ -72,7 +74,7 @@ def match(field):
 			naa = r['NAACCRCode']
 			dt = r['DataType']
 			pk = r['PK']
-			cat = r['DeepPheModel']  #METRIQFolder
+			cat = r['OntologyCategory']  #METRIQFolder
 			if len(dt) < 1:
 				dt = 'CATEGORY'  # default to category
 			break
@@ -184,7 +186,7 @@ def build_transmart_rows(columns, afile):
 			#print ("w/ code: " + prettyName + "  " + descript)
 			if len(prettyName) < 1:
 				prettyName = mlabel
-				descript = ""
+				descript = mlabel
 			#print (name + ":" + descript )
 		else:
 			if mlabel:
@@ -198,7 +200,7 @@ def build_transmart_rows(columns, afile):
 			cat = 'Other'
 		
 		#line =  {afile + "\tFolder\t" + str(cnt) + "\t" + prettyName + "\t" + col.lower() + "\t" + ncode}
-		line =  {'Filename': afile, 'Category Code':cat, 'Column Number': str(cnt),  'Data Label': prettyName} #, 'Data Label Source':col.lower(), 'Controlled Vocab Code': ncode}
+		line =  {'Filename': afile, 'Category Code':cat, 'Column Number': str(cnt),  'Data Label': prettyName, 'Description': descript} #, 'Data Label Source':col.lower(), 'Controlled Vocab Code': ncode}
 		row.append(line)
 		cnt += 1
 		prettyName = ""
@@ -209,7 +211,7 @@ def build_transmart_rows(columns, afile):
 
 def write_transmart_cfg(rows, afile):
 
-	headers = ['Filename', 'Category Code', 'Column Number', 'Data Label']  #, 'Data Label Source', 'Controlled Vocab Code']
+	headers = ['Filename', 'Category Code', 'Column Number', 'Data Label', 'Description']  #, 'Data Label Source', 'Controlled Vocab Code']
 	afile = outfilename # + "-transcfg.tsv"
 
 	with open(afile, "w") as out:
