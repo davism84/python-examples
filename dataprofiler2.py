@@ -99,7 +99,14 @@ def process():
 					invalidDt = '-' 
 
 				if dtype == 'object':
-					topValStr = str(v[2])
+					topValStr = "--"
+					topFreq = 0
+					try:
+						topValStr = str(v[2])
+						topFreq = v[3]
+					except Exception as e:
+						pass
+					
 					unqValStr = str(v[1])
 					bins = df[col].value_counts()  # count by categories
 					secValStr = '-'
@@ -114,7 +121,7 @@ def process():
 
 
 					writer.writerow({'column': col, 'count': v[0], 'percentage': '{:3.1f}%'.format(percent), 
-						'unique_values': unqValStr, 'top_value': topValStr, 'top_freq': v[3], 'second_top_value': secValStr, 'second_top_value_freq':secValStrFreq, 
+						'unique_values': unqValStr, 'top_value': topValStr, 'top_freq': topFreq, 'second_top_value': secValStr, 'second_top_value_freq':secValStrFreq, 
 						'tertiary_top_value': terValStr, 'tertiary_top_value_freq':terValStrFreq, 'invalid_dates': invalidDt})
 				else:
 					writer.writerow({'column': col, 'count': v[0], 'percentage': '{:3.1f}%'.format(percent), 
