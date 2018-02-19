@@ -12,7 +12,7 @@ url = "http://data.bioontology.org/search"
 querystring = {"q":term}
 
 headers = {
-    'authorization': "<API KEY HERE>",
+    'authorization': "apikey token=75479e12-0267-4718-a7d7-2e5aed3b3ca4",
     'cache-control': "no-cache",
     'postman-token': "e9e97c86-ecba-cca7-4213-3933e49f3e09"
     }
