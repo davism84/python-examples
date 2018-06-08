@@ -8,6 +8,9 @@ infile = ""
 def process():
 	# read csv
 	df = pd.read_csv(infile)
+	print("----------------------------------------------")
+	print("File: " + infile)
+	print("Total Rows: " + str(df['ID'].count()) + " Columns: " + str(len(df.columns)))
 
 	# drop the full row duplicates
 	ndf = df.drop_duplicates()  #keep='last')
@@ -19,12 +22,11 @@ def process():
 	# create a temp dup matrix where the 'is_dup_id' is True
 	#dup_ids = ndf[ndf.is_dup_id]
 	dups = ndf.loc[ndf.duplicated(["ID"]), :]
+	print("# of IDs with duplicate rows: " + str(len(dups)))
 
 	# the dup ids
 	di = dups["ID"].drop_duplicates()
-	print("Found the following duplicate ids...")
-	#print(di)
-
+	print("----------------------------------------------")
 	# get column names
 	colhdrs = ndf.columns
 	#print(type(colhdrs))
@@ -80,6 +82,7 @@ def process():
 						#colmaxvalues[col] = rowCount
 				idx = idx + 1
 	print("Columns that need repeating:")
+	print(len(colmaxvalues))
 	print(colmaxvalues)
 	# build a new df with expanded columns
 	expandedColHdrs = []
@@ -180,6 +183,15 @@ def process():
 
 	# write to a csv
 	merged.to_csv(fn[0] + '-merged.csv', index=False)
+
+	mc = len(merged.columns)
+	dc = len(df.columns)
+	columnDiff = dc- mc
+
+	print("----------------------------------------------")
+	print("Saved merges to File: " + fn[0] + '-merged.csv')
+	print("Original Rows: " + str(df['ID'].count()) + " Columns: " + str(len(df.columns)))
+	print("Merged Rows  : " + str(merged['ID'].count()) + " Columns: " + str(len(merged.columns)) + " Repeat Columns added: " + str(abs(columnDiff)))
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
