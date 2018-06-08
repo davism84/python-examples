@@ -79,7 +79,8 @@ def process():
 						colmaxvalues[col] = v
 						#colmaxvalues[col] = rowCount
 				idx = idx + 1
-			#print(colmaxvalues)
+	print("Columns that need repeating:")
+	print(colmaxvalues)
 	# build a new df with expanded columns
 	expandedColHdrs = []
 
@@ -92,7 +93,7 @@ def process():
 				if idx == 0:
 					expandedColHdrs.append(c)
 				else:
-					nextColName = c + "_" + str(idx)
+					nextColName = c + "_" + str(idx+1)
 					expandedColHdrs.append(nextColName)
 				idx = idx + 1
 		except:
@@ -133,11 +134,11 @@ def process():
 						n = int(repeatVal['index'])+1
 						reps = int(repeatVal['repeats'])
 						# add new extra fields to the list
-						t = 1
-						while t < reps:
-							vn =  colhdrs[i] + "_" + str(t)
+						varIdx = 1
+						while varIdx < reps:
+							vn =  colhdrs[i] + "_" + str(varIdx+1)
 							listSeries[vn] = ""
-							t = t + 1
+							varIdx = varIdx + 1
 						#print("Data put at " + str(repeatVal['index']) + " - " + colhdrs[i] + "_" + str(rowCnt))
 					except KeyError:
 						pass
@@ -146,9 +147,13 @@ def process():
 				for i in range(len(colhdrs)):
 					try:
 						repeatVal = colmaxvalues[colhdrs[i]] #look up the col max val counter
-						newLabel = colhdrs[i] + "_" + str(rowCnt)
+						newLabel = colhdrs[i] + "_" + str(rowCnt+1)
 						dataval = lsRow[1][colhdrs[i]]
-						listSeries[newLabel] =  dataval
+						starterVal = listSeries[colhdrs[i]]  # get the start of series value to compare
+						if dataval != starterVal:
+							listSeries[newLabel] =  dataval
+						else:
+							listSeries[newLabel] = ""
 						#print("Data put at " + str(repeatVal['index']) + " - " + newLabel + " = " + str(dataval))
 					except KeyError:
 						pass
@@ -160,7 +165,7 @@ def process():
 	print("Processing the merged records...")
 	expdf = expdf.from_records(rowDict)
 
-	print("Post clean-up of duplicate reocrds...")
+	print("Post clean-up of duplicate records...")
 	# Post clean-up, by removing all the duplicate ids
 	# no go back and drop the non-dup df with id
 	for c, dupid in di.iteritems():
@@ -174,7 +179,7 @@ def process():
 	fn = infile.split(".")
 
 	# write to a csv
-	merged.to_csv(fn[0] + '-merged.csv')
+	merged.to_csv(fn[0] + '-merged.csv', index=False)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
