@@ -6,14 +6,13 @@ import argparse
 import lxml.html as lh
 from lxml.html import fromstring
 
-CUI = ""
-APIKEY = ""
+apikey = ""
 
 # get a ticket granting ticket for this session.
 def getTGT():
 	url = "https://utslogin.nlm.nih.gov/cas/v1/api-key"
 
-	payload = "apikey=" + APIKEY
+	payload = "apikey=" + apikey
 	headers = {
 		'content-type': "application/x-www-form-urlencoded",
 	}
@@ -82,18 +81,16 @@ def getCUI(cui):
 if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("-cui", "--cui", help="CUI")
-	parser.add_argument("-key", "--key", help="API Key")
+	parser.add_argument("-c", "--cui", required = True, dest = "cui", help="CUI")
+	parser.add_argument("-k", "--key", required = True, dest = "apikey", help="API Key")
 	args = parser.parse_args()
 
-	if args.cui:
-		CUI = args.cui
-	if args.key:
-		APIKEY = args.key
+	cui = args.cui
+	apikey = args.apikey
 
-	print ("CUI: " + CUI)
-	print(getCUI(CUI))
+	print ("CUI: " + cui)
+	print(getCUI(cui))
 	print("Relationships")
-	print(getCUIRelations(CUI))
+	print(getCUIRelations(cui))
 
 
