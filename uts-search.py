@@ -58,6 +58,18 @@ def getCUIRelations(cui):
 	#print(response.text)
 	return response.text
 
+def parseRelations(resp):
+	relations = []
+	jdata = json.loads(resp)
+	rels = jdata['result']
+	for r in rels:
+		name = r['relatedIdName']
+		rid = r['relatedId']
+		start = rid.rfind("/")
+		cui = rid[start+1:len(rid)]
+		relative = {'cui':cui, 'name':name}
+		relations.append(relative)
+	return relations
 
 def getCUI(cui):
 
@@ -77,20 +89,67 @@ def getCUI(cui):
 	#print(response.text)
 	return response.text
 
+def textSearch(text):
+	results = []
+	tgt = getTGT() # get a ticket granting ticket for this session.
+	st = getST(tgt) # Get a Service Ticket using the Ticket Granting Ticket
+
+	url = "https://uts-ws.nlm.nih.gov/rest/search/current"
+
+	querystring = {"string":text,"ticket": st}
+
+	headers = {
+		'cache-control': "no-cache",
+		'postman-token': "129575d9-1c67-1439-3d42-f18e18c92f0a"
+		}
+
+	response = requests.request("GET", url, headers=headers, params=querystring)
+	return response.text
+
+def parseTextResults(resp):
+	results = []
+	jdata = json.loads(resp)
+	rels = jdata['result']['results']
+	for r in rels:
+		#print(r)
+		name = r['name']
+		cui = r['ui']
+		x = {'cui':cui, 'name':name}
+		results.append(x)
+	return results
+
 
 if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("-c", "--cui", required = True, dest = "cui", help="CUI")
+	parser.add_argument("-c", "--cui", dest = "cui", help="CUI")
+	parser.add_argument("-t", "--text", dest = "searchText", help="Search text")
 	parser.add_argument("-k", "--key", required = True, dest = "apikey", help="API Key")
 	args = parser.parse_args()
 
 	cui = args.cui
 	apikey = args.apikey
+	searchText = args.searchText
 
-	print ("CUI: " + cui)
-	print(getCUI(cui))
-	print("Relationships")
-	print(getCUIRelations(cui))
+	if cui:
+		print ("CUI: " + cui)
+		relatives = parseRelations(getCUIRelations(cui))
+		if relatives:
+			print("Relationships")
+			for x in relatives:
+				print(x['name'] + ' (' + x['cui'] + ')' )
+	if searchText:
+		print("Searching for ..."+searchText)
+		results = parseTextResults(textSearch(searchText))
+		if results:
+			# quickly find the searched text in the list of results
+			match = filter(lambda x: x['name'].lower() == searchText.lower(), results)
+			if match:
+				for c in match:
+					print('Search Term: ' + c['name'] + ' (' + c['cui'] + ')' )  # display my match string
+			print("Suggested Concepts...")
+			for x in results:
+				print(x['name'] + ' (' + x['cui'] + ')' )
+
 
 
