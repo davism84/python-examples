@@ -11,16 +11,18 @@ headers = []
 data = {}
 config = False
 cde = {}
+disease = ""
+
 def parseit(xmlfile):
 
 	parser = etree.XMLParser(remove_blank_text=True)
 	tree = etree.parse(xmlfile, parser)
 
 	root = tree.getroot()
-	patRoot = '{' + root.nsmap['skcm'] + '}patient'
+	patRoot = '{' + root.nsmap[disease] + '}patient'
 	adminRoot = root.nsmap['admin']
 	topRoot = 'tcga_bcr'
-	nteRoot = '{' + root.nsmap['skcm_nte'] + '}'
+	nteRoot = '{' + root.nsmap[disease + '_nte'] + '}'
 	nte = '{' + root.nsmap['nte'] + '}'
 	for elem in root.iter():
 		#if not hasattr(elem.tag, 'find'): continue  # (1)
@@ -121,7 +123,8 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("xmlfile", help="a xml data file")
 	parser.add_argument("csvfile", help="a csv data file")
-	parser.add_argument("-conf", action="store_true", help="config")
+	parser.add_argument("-conf", action="store_true", help="to generate just a config file")
+	parser.add_argument("-disease", help="specify the disease (e.g., ov")
 
 	args = parser.parse_args()
 
@@ -131,6 +134,8 @@ if __name__ == "__main__":
 		csvfile =args.csvfile
 	if args.conf:
 		config = True
+	if args.disease:
+		disease = args.disease
 
 	parseit(xmlfile)
 
