@@ -8,10 +8,10 @@ import time
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
-
+KEYNAME = "id"
 directory = ""
 indexName = "pathology"
-typeName = "reports"
+typeName = "healthdata"
 THRESHOLD = 10000  # this regulates how much data gets loaded then is processed in a bulk group
 
 def loadit():
@@ -28,11 +28,11 @@ def loadit():
 				bulk_action = []
 				bulkCount = 0
 				for rec in ijson.items(input_file, 'item'):
-					print(rec['id'])
+					#print(rec['id'])
 					bulk = {
 						"_index"  : indexName,
 						"_type"   : typeName,
-						"_id"     : rec['id'],
+						"_id"     : rec[KEYNAME],
 						"_source" : rec,
 					}
 					bulk_action.append(bulk)
@@ -64,13 +64,12 @@ if __name__ == "__main__":
 	parser.add_argument("-thres", help="set the batch threshold")
 	parser.add_argument("-i", help="set the index name")
 	parser.add_argument("-t", help="set the type")
+	parser.add_argument("-k", help="set the KEYNAME")
 
 	args = parser.parse_args()
 
 	if args.d:
 		directory = args.d
-		if directory[-1] != '/':
-			directory = directory + '/'
 	if args.thres:
 		THRESHOLD = int(args.thres)
 		print ("Batch threshold: " + str(THRESHOLD))
@@ -79,6 +78,9 @@ if __name__ == "__main__":
 		indexName = args.i
 	if args.t:
 		typeName = args.t
+
+	if args.k:
+		KEYNAME = args.k
 
 	start = time.time()
 	loadit()
