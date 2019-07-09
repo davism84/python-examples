@@ -2,6 +2,8 @@ from pandas import DataFrame, read_csv
 import pandas as pd
 import numpy as np
 import argparse
+import math
+import os
 
 infile = ""
 
@@ -13,11 +15,11 @@ def process():
 	print("Total Rows: " + str(df['ID'].count()) + " Columns: " + str(len(df.columns)))
 
 	# drop the full row duplicates
-	ndf = df.drop_duplicates()  #keep='last')
+	ndf = df.drop_duplicates(keep='last')
 
 	# get those IDs that are dup
 	#ndf.loc[ndf.duplicated(["ID"]), :]
-	#print(ndf)
+	print(ndf)
 
 	# create a temp dup matrix where the 'is_dup_id' is True
 	#dup_ids = ndf[ndf.is_dup_id]
@@ -29,7 +31,7 @@ def process():
 	print("----------------------------------------------")
 	# get column names
 	colhdrs = ndf.columns
-	#print(type(colhdrs))
+#	print(colhdrs)
 
 	colmaxvalues = {}
 	allDupGrps = pd.DataFrame(columns=colhdrs)
@@ -52,33 +54,36 @@ def process():
 		if dupsubgrp["ID"].count() > 1:
 			#print("Subgrp total: " + str(dupsubgrp["ID"].count()))
 			idx = 0
-			# loop trough all the columns to start checking to see how many we need replicate
+			# loop through all the columns to
+			# start checking to see how many we need replicate
 			for col in colhdrs:
 				nonNullTotal = dupsubgrp[col].count()  # get all non null value totals
 				nullTotal = sum(pd.isnull(dupsubgrp[col]))  # get those that are null
 				rowCount = nonNullTotal + nullTotal
-				coldups = dupsubgrp.duplicated([col])  # get the dups within the column
+				coldups = dupsubgrp.duplicated([col]) #, keep='first')  # get the dups within the column
 				coldupsvals = coldups.values
 				#print(col)
 				#print(adups)
 				#print(dupsubgrp[col])
-				# search of all the  dups (true), gives back non-empty element array
-				element = np.where(coldupsvals == True)
+				# search of all the  non-dups (true), gives back non-empty element array
+				element = np.where(coldupsvals == False)
 				#if cdups.values.max:
 				#print(element)
 				#print(len(element[0]))
-				cnt = len(element[0]) + 1   # add one to include the first dup row
+				dupcnt = len(element[0]) #+ 1   # add one to include the first dup row
 				#a = element[0].tolist()
 				#cnt = a.count(True) + 1   # include the first element
 					#print("Column has dups")
-				if cnt < rowCount:
-					v = {'index': str(idx),'repeats': str(rowCount)}
-					try:
-						maxval = colmaxvalues[col]  #look up the col max val counter
-						if rowCount > maxval:
-							colmaxvalues[col] = v
-					except:
+				col = col.strip()
+				#if dupcnt > 1:
+				v = {'index': str(idx),'repeats': str(dupcnt)}
+				try:
+					maxval = colmaxvalues[col]  #look up the col max val counter
+					if rowCount > maxval:
 						colmaxvalues[col] = v
+				except:
+					colmaxvalues[col] = v
+
 						#colmaxvalues[col] = rowCount
 				idx = idx + 1
 	print("Columns that need repeating:")
@@ -90,31 +95,35 @@ def process():
 	print("Expanding the columns with new variables...")
 	for c in colhdrs:
 		try:
+			c = c.strip()
 			repeatMaxVal = colmaxvalues[c]  # check to see if column needs expanded
+			#print(repeatMaxVal)
 			idx = 0
-			while idx < repeatMaxVal.repeats:
-				if idx == 0:
+			repeats = int(repeatMaxVal['repeats'])
+			while idx < repeats:
+				if idx == 0 or repeats < 2:
 					expandedColHdrs.append(c)
 				else:
-					nextColName = c + "_" + str(idx+1)
+					nextColName = c + "_" + str(idx)
 					expandedColHdrs.append(nextColName)
 				idx = idx + 1
 		except:
-			expandedColHdrs.append(c)
+			expandedColHdrs.append(c.strip())
 
-	#print(expandedColHdrs)
+	print("Expanded column headers...")
+	print(expandedColHdrs)
 
 	# new df
 	expdf = pd.DataFrame(columns=expandedColHdrs)
-	#print(expdf)
+	expcolhdrs = expdf.columns
 
 	# loop throught dup sub grp to merge rows
 	#print(allDupGrps["ID"])
 	print("Processing the sub-groups and merging data for these dup IDs...")
 	grouped = allDupGrps.groupby(allDupGrps["ID"])
 	grpids = list(grouped.groups.keys())
-	print(grpids)
-	print("----------")
+#	print(grpids)
+#	print("----------")
 
 	rowDict = []
 	# iterate over all the groups
@@ -128,70 +137,129 @@ def process():
 		# iterate over one grouping
 		for dfRow in df0.iterrows():
 			lsRow = list(dfRow)  # convert the tuple to a list
-			if  rowCnt == 0:  # for the first record only  jumpstart the record
-				listSeries = lsRow[1]  # get the Series
-				# insert any repeated fields
-				for i in range(len(colhdrs)):
-					try:
-						repeatVal = colmaxvalues[colhdrs[i]] #look up the col max val counter
-						n = int(repeatVal['index'])+1
-						reps = int(repeatVal['repeats'])
-						# add new extra fields to the list
-						varIdx = 1
-						while varIdx < reps:
-							vn =  colhdrs[i] + "_" + str(varIdx+1)
-							listSeries[vn] = ""
-							varIdx = varIdx + 1
-						#print("Data put at " + str(repeatVal['index']) + " - " + colhdrs[i] + "_" + str(rowCnt))
-					except KeyError:
-						pass
-				#print(listSeries)
-			else:  # for the remaining rows, fill in correct field slot
-				for i in range(len(colhdrs)):
-					try:
-						repeatVal = colmaxvalues[colhdrs[i]] #look up the col max val counter
-						newLabel = colhdrs[i] + "_" + str(rowCnt+1)
-						dataval = lsRow[1][colhdrs[i]]
-						starterVal = listSeries[colhdrs[i]]  # get the start of series value to compare
-						if dataval != starterVal:
-							listSeries[newLabel] =  dataval
-						else:
-							listSeries[newLabel] = ""
-						#print("Data put at " + str(repeatVal['index']) + " - " + newLabel + " = " + str(dataval))
-					except KeyError:
-						pass
+
+			if rowCnt == 0:
+				listSeries = dict(lsRow[1])  # initialize the dictionary
+
+			for chv in colhdrs:  # cycle through all the original column headers
+				varInsCnt = 1
+				try:
+					#chv = chv.strip()
+					repeatVal = colmaxvalues[chv] #look up the col max val counter
+					repeats = int(repeatVal['repeats'])
+					if repeats > 1:
+						nextDataVal = lsRow[1][chv]
+						if (listSeries[chv] != nextDataVal):
+							newLabel = chv + "_" + str(varInsCnt)
+							d = {newLabel:nextDataVal}
+							listSeries.update(d)   # assuming there are no multiples and just add var/data
+							varInsCnt = varInsCnt + 1
+				except KeyError:
+					pass
 			rowCnt = rowCnt+1
-		d = dict(listSeries) # conver only the data to a dictionary
-		rowDict.append(d)
+#		print(listSeries)
+		#d = dict(listSeries) # convert only the data to a dictionary
+		rowDict.append(listSeries)
 
-	#print(rowDict)
-	print("Processing the merged records...")
-	expdf = expdf.from_records(rowDict)
+	print("Dictionary...")
+	print(rowDict)
+	print("Saving the merged records...")
+	#expdf = expdf.from_records(rowDict)
+	print(expcolhdrs)
 
+	fn = infile.split(".")
+	csvfile = fn[0] + '-merged.csv'
+
+	if os.path.exists(csvfile):
+		os.remove(csvfile)
+
+	outfile = open(csvfile, 'w')
+
+# write out the headers
+	for h in expcolhdrs:
+		outfile.write(h + ',')
+	outfile.write('\n')
+
+	for record in rowDict:
+		# add a blank record to dataframe
+		#expdf.append(pd.Series(name=record['ID']))
+		print(record)
+		#print(record.keys())
+		for key in expcolhdrs:
+#		for key in record.keys():
+#			expdf.loc[record['ID'], key] = record[key]
+			#expdf.replace({key,record['ID']}, record[key])
+			value = None
+			try:
+				value = record[key]
+				if math.isnan(float(value)):
+					value = None
+			except:
+				pass
+
+			if value == None:
+				value = ""
+
+			try:
+				if value.find(',') > 0:
+					outfile.write('"' + str(value) + '"'+ ',')
+				else:
+					outfile.write(str(value) + ',')
+			except:
+				outfile.write(str(value) + ',')
+				pass
+		outfile.write('\n')
+			#print(key + ': ' + str(value) + ',')
+
+
+
+	print('Updated Dataframe columns...')
+	print(expdf.columns)
 	print("Post clean-up of duplicate records...")
-	# Post clean-up, by removing all the duplicate ids
-	# no go back and drop the non-dup df with id
+	# Post clean-up, by removing all the duplicate ids data
+	# and retain the non-dup data
 	for c, dupid in di.iteritems():
 		ndf = ndf[ndf.ID != int(dupid)]  # drop col with specific ID
 
-	print("Merging dataframes...")
-	# merge the dataframes
-	merged = pd.concat([ndf, expdf])
+	for rowidx, row in ndf.iterrows():
+#	for key, value in ndf.iteritems():
+		print(dict(row))
+		dictrow = dict(row)  # convert row to a dictionary
+		for key in expcolhdrs:
+			try:
+				value = dictrow[key]
+				try:
+					if math.isnan(float(value)):
+						value = ""
+				except:
+					pass
 
-	print("Writing merged file...")
-	fn = infile.split(".")
+				if value == None:
+					value = ""
 
-	# write to a csv
-	merged.to_csv(fn[0] + '-merged.csv', index=False)
+				try:
+					if value.find(',') > 0:
+						outfile.write('"' + str(value) + '"'+ ',')
+					else:
+						outfile.write(str(value) + ',')
+				except:
+					outfile.write(str(value) + ',')
+					pass
+			except:
+				outfile.write(',')
+				pass
+		outfile.write('\n')
 
-	mc = len(merged.columns)
+	outfile.close()
+
+#	mc = len(merged.columns)
 	dc = len(df.columns)
-	columnDiff = dc- mc
+#	columnDiff = dc- mc
 
 	print("----------------------------------------------")
-	print("Saved merges to File: " + fn[0] + '-merged.csv')
+	print("Saved merges to File: " + csvfile)
 	print("Original Rows: " + str(df['ID'].count()) + " Columns: " + str(len(df.columns)))
-	print("Merged Rows  : " + str(merged['ID'].count()) + " Columns: " + str(len(merged.columns)) + " Repeat Columns added: " + str(abs(columnDiff)))
+#	print("Merged Rows  : " + str(merged['ID'].count()) + " Columns: " + str(len(merged.columns)) + " Repeat Columns added: " + str(abs(columnDiff)))
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
