@@ -19,7 +19,7 @@ def process():
 
 	# get those IDs that are dup
 	#ndf.loc[ndf.duplicated(["ID"]), :]
-	print(ndf)
+#	print(ndf)
 
 	# create a temp dup matrix where the 'is_dup_id' is True
 	#dup_ids = ndf[ndf.is_dup_id]
@@ -35,6 +35,16 @@ def process():
 
 	colmaxvalues = {}
 	allDupGrps = pd.DataFrame(columns=colhdrs)
+
+	# maxValues = {}
+	#
+	# dupSummary = dups.groupby('ID').count()
+	#
+	# for col in colhdrs:
+	# 	if col != 'ID':
+	# 		cnt = dupSummary[col].max()
+	# 		z = {'repeats': cnt}
+	#		maxValues[col] = z
 
 	for c, dupid in di.iteritems():
 
@@ -60,32 +70,29 @@ def process():
 				nonNullTotal = dupsubgrp[col].count()  # get all non null value totals
 				nullTotal = sum(pd.isnull(dupsubgrp[col]))  # get those that are null
 				rowCount = nonNullTotal + nullTotal
-				coldups = dupsubgrp.duplicated([col]) #, keep='first')  # get the dups within the column
+				coldups = dupsubgrp.duplicated([col], keep='first')  # get the dups within the column
 				coldupsvals = coldups.values
-				#print(col)
-				#print(adups)
-				#print(dupsubgrp[col])
 				# search of all the  non-dups (true), gives back non-empty element array
 				element = np.where(coldupsvals == False)
-				#if cdups.values.max:
-				#print(element)
-				#print(len(element[0]))
 				dupcnt = len(element[0]) #+ 1   # add one to include the first dup row
-				#a = element[0].tolist()
-				#cnt = a.count(True) + 1   # include the first element
-					#print("Column has dups")
+				dupLocations = element[0].tolist()
 				col = col.strip()
+
+
 				#if dupcnt > 1:
-				v = {'index': str(idx),'repeats': str(dupcnt)}
+				v = {'index': str(idx),'repeats': str(dupcnt)}  #, 'repeatvals': dupValues}  #'idxpos': element,
 				try:
 					maxval = colmaxvalues[col]  #look up the col max val counter
-					if rowCount > maxval:
+					if dupcnt > int(maxval['repeats']):
 						colmaxvalues[col] = v
 				except:
 					colmaxvalues[col] = v
 
 						#colmaxvalues[col] = rowCount
 				idx = idx + 1
+
+
+
 	print("Columns that need repeating:")
 	print(len(colmaxvalues))
 	print(colmaxvalues)
@@ -132,40 +139,59 @@ def process():
 		df0 = grouped.get_group(grpid)
 
 		rowCnt = 0
-		k = df0.keys()
 		listSeries = ""
+
 		# iterate over one grouping
-		for dfRow in df0.iterrows():
-			lsRow = list(dfRow)  # convert the tuple to a list
+#		for dfRow in df0.iterrows():
+		dfRow = df0.iloc[0]  # get the first row
+		lsRow = list(dfRow)  # convert the tuple to a list
 
-			if rowCnt == 0:
-				listSeries = dict(lsRow[1])  # initialize the dictionary
+		listSeries = dict(dfRow)  # initialize the dictionary with first values
 
-			for chv in colhdrs:  # cycle through all the original column headers
-				varInsCnt = 1
-				try:
-					#chv = chv.strip()
-					repeatVal = colmaxvalues[chv] #look up the col max val counter
-					repeats = int(repeatVal['repeats'])
-					if repeats > 1:
-						nextDataVal = lsRow[1][chv]
-						if (listSeries[chv] != nextDataVal):
-							newLabel = chv + "_" + str(varInsCnt)
-							d = {newLabel:nextDataVal}
-							listSeries.update(d)   # assuming there are no multiples and just add var/data
-							varInsCnt = varInsCnt + 1
-				except KeyError:
-					pass
-			rowCnt = rowCnt+1
+		for chv in colhdrs:  # cycle through all the original column headers
+			#columnInfo = colmaxvalues[chv] #look up the col max val counter
+			#repeats = int(columnInfo['repeats'])
+			coldups = df0.duplicated([chv], keep='first')  # get the dups within the column
+			coldupsvals = coldups.values
+			# search of all the  non-dups (true), gives back non-empty element array
+			element = np.where(coldupsvals == False)
+			dupcnt = len(element[0])  # + 1   # add one to include the first dup row
+
+			if dupcnt > 1:  # only process repeating columns
+
+				dupLocations = element[0].tolist()
+
+				repeatVals = []
+
+				grpIdxs = grouped.indices[grpid]  # get the group indices, they change for these subgroupings
+
+				for i in dupLocations:
+					try:
+						grpIdx = grpIdxs[i]    # translate to the actual group index, it does not start at zero
+						repeatVals.append(df0[chv][grpIdx])
+					except KeyError:
+						continue
+#				repeatVals = columnInfo['repeatvals']
+				varInsCnt = 0  # set variable instance counter
+				for rv in repeatVals:
+					if varInsCnt == 0:
+						varInsCnt += 1
+						continue
+					else:
+						extColName = chv + "_" + str(varInsCnt)  # form next variable name to check against
+						d = {extColName: rv}
+						listSeries.update(d)  # assuming there are no multiples and just add var/data
+					varInsCnt += 1
+		rowCnt = rowCnt+1
 #		print(listSeries)
 		#d = dict(listSeries) # convert only the data to a dictionary
 		rowDict.append(listSeries)
 
-	print("Dictionary...")
-	print(rowDict)
+#	print("Dictionary...")
+#	print(rowDict)
 	print("Saving the merged records...")
 	#expdf = expdf.from_records(rowDict)
-	print(expcolhdrs)
+#	print(expcolhdrs)
 
 	fn = infile.split(".")
 	csvfile = fn[0] + '-merged.csv'
@@ -183,7 +209,7 @@ def process():
 	for record in rowDict:
 		# add a blank record to dataframe
 		#expdf.append(pd.Series(name=record['ID']))
-		print(record)
+		#print(record)
 		#print(record.keys())
 		for key in expcolhdrs:
 #		for key in record.keys():
@@ -223,7 +249,7 @@ def process():
 
 	for rowidx, row in ndf.iterrows():
 #	for key, value in ndf.iteritems():
-		print(dict(row))
+		#print(dict(row))
 		dictrow = dict(row)  # convert row to a dictionary
 		for key in expcolhdrs:
 			try:
